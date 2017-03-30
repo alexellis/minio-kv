@@ -32,15 +32,15 @@ func getHandler(minioClient *minio.Client) http.HandlerFunc {
 
 		data, readErr := ioutil.ReadAll(objectReceived)
 		if readErr != nil {
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(http.StatusNotFound)
 			log.Println("Can't read object " + object)
 			return
+		} else {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			fmt.Printf("%s\n%s", object, string(data))
+			w.Write(data)
 		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		fmt.Printf("'%s'", string(data))
-		w.Write(data)
 	}
 }
 
@@ -56,11 +56,13 @@ func putHandler(minioClient *minio.Client) http.HandlerFunc {
 		n, putErr := minioClient.PutObject("tables", object, reader, "application/text")
 		if putErr != nil {
 			log.Println("Can't put object " + object)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Can't put " + object + ". Failed."))
+		} else {
+			log.Printf("Put %s. n=%d\n", object, n)
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("Put " + object + ". OK."))
 		}
-		log.Printf("n=%d\n", n)
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Put " + object + ". OK."))
-
 	}
 }
 
@@ -78,34 +80,52 @@ func get(key string) string {
 	return env
 }
 
+func connect(ssl bool, secret string, access string, host string) (*minio.Client, error) {
+	maxAttempts := 30
+        connected := false
+	var err error
+	var minioClient *minio.Client
+
+	for i := 1; i <= maxAttempts; i++ {
+		fmt.Printf("Connecting: %d/%d\n", i, maxAttempts)
+		minioClient, err = minio.New(host, access, secret, ssl)
+
+		if err == nil {
+                        connected = true
+			break;
+		} else {
+			log.Println(err)
+			time.Sleep(1 * time.Second)
+		}
+	}
+        if connected == false && err != nil {
+		log.Fatal("Cannot connect to S3")
+		return nil, err
+        }
+
+	exists, err := minioClient.BucketExists("tables")
+        if err == nil && exists == false {
+		err = minioClient.MakeBucket("tables", "us-east-1")
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Println("Successfully created bucket \"tables\".")
+		}
+	}
+
+	return minioClient, err
+}
+
 func main() {
 	ssl := false
 	secret := get("secret")
 	access := get("access")
-	fmt.Printf("secret='%s',access='%s'\n", secret, access)
-	var minioClient *minio.Client
-	var err error
-	for i := 0; i < 10; i++ {
-		fmt.Printf("Connecting: %d/5\n", i)
-		minioClient, err = minio.New(os.Getenv("host"),
-			access,
-			secret, ssl)
+	host := os.Getenv("host")
 
-		if err != nil {
-			log.Println(err)
-		}
-		time.Sleep(1 * time.Second)
-	}
+	fmt.Printf("secret='%s',access='%s'\n", secret, access)
+	minioClient, err := connect(ssl, secret, access, host)
         if err != nil {
-            log.Fatal("Cannot connect to S3")
-            return
-        }
-	err = minioClient.MakeBucket("tables", "us-east-1")
-	if err != nil {
-		fmt.Println(err)
-                return
-	} else {
-		fmt.Println("Successfully created bucket \"tables\".")
+		log.Fatal(err)
 	}
 
 	r := mux.NewRouter()
