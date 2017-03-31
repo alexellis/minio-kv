@@ -17,6 +17,54 @@ import (
 	minio "github.com/minio/minio-go"
 )
 
+func getBlobHandler(minioClient *minio.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		vars := mux.Vars(r)
+		object := vars["object"]
+
+		objectReceived, getErr := minioClient.GetObject("tables", object)
+		if getErr != nil {
+			w.WriteHeader(http.StatusNotFound)
+			log.Println("Can't get object " + object)
+			return
+		}
+
+		data, readErr := ioutil.ReadAll(objectReceived)
+		if readErr != nil {
+			w.WriteHeader(http.StatusNotFound)
+			log.Println("Can't read object " + object)
+			return
+		} else {
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.WriteHeader(http.StatusOK)
+			w.Write(data)
+		}
+	}
+}
+
+func putBlobHandler(minioClient *minio.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		object := vars["object"]
+
+		defer r.Body.Close()
+		body, _ := ioutil.ReadAll(r.Body)
+		reader := bytes.NewReader(body)
+
+		n, putErr := minioClient.PutObject("tables", object, reader, "application/octet-stream")
+		if putErr != nil {
+			log.Println("Can't put object " + object)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Can't put " + object + ". Failed."))
+		} else {
+			log.Printf("Put %s. n=%d\n", object, n)
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("Put " + object + ". OK."))
+		}
+	}
+}
+
 func getHandler(minioClient *minio.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -132,7 +180,10 @@ func main() {
 	r.Handle("/put/{object:[a-zA-Z0-9.-_]+}", putHandler(minioClient))
 	r.Handle("/get/{object:[a-zA-Z0-9.-_]+}", getHandler(minioClient))
 
-	s := &http.Server{
+    r.Handle("/put-blob/{object:[a-zA-Z0-9.-_]+}", putBlobHandler(minioClient))
+	r.Handle("/get-blob/{object:[a-zA-Z0-9.-_]+}", getBlobHandler(minioClient))
+
+s := &http.Server{
 		Addr:           ":8080",
 		ReadTimeout:    1 * time.Second,
 		WriteTimeout:   1 * time.Second,
