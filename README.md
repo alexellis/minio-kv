@@ -1,6 +1,6 @@
 # minio-db
 
-A thin layer on top of Minio-db to store JSON objects with GET/PUT over HTTP.
+Minio-DB is a thin layer to store JSON objects and binary blobs in a Minio object storage server with a GET/PUT interface over HTTP.
 
 ### Usage:
 
