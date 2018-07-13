@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+        "github.com/gorilla/context"
 	minio "github.com/minio/minio-go"
 )
 
@@ -23,7 +24,7 @@ func getBlobHandler(minioClient *minio.Client) http.HandlerFunc {
 		vars := mux.Vars(r)
 		object := vars["object"]
 
-		objectReceived, getErr := minioClient.GetObject("tables", object)
+		objectReceived, getErr := minioClient.GetObject("tables", object, minio.GetObjectOptions{})
 		if getErr != nil {
 			w.WriteHeader(http.StatusNotFound)
 			log.Println("Can't get object " + object)
@@ -52,7 +53,7 @@ func putBlobHandler(minioClient *minio.Client) http.HandlerFunc {
 		body, _ := ioutil.ReadAll(r.Body)
 		reader := bytes.NewReader(body)
 
-		n, putErr := minioClient.PutObject("tables", object, reader, "application/octet-stream")
+		n, putErr := minioClient.PutObject("tables", object, reader, -1, minio.PutObjectOptions{ContentType:"application/octet-stream"})
 		if putErr != nil {
 			log.Println("Can't put object " + object)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -71,7 +72,7 @@ func getHandler(minioClient *minio.Client) http.HandlerFunc {
 		vars := mux.Vars(r)
 		object := vars["object"]
 
-		objectReceived, getErr := minioClient.GetObject("tables", object)
+		objectReceived, getErr := minioClient.GetObject("tables", object, minio.GetObjectOptions{})
 		if getErr != nil {
 			w.WriteHeader(http.StatusNotFound)
 			log.Println("Can't get object " + object)
@@ -101,7 +102,7 @@ func putHandler(minioClient *minio.Client) http.HandlerFunc {
 		body, _ := ioutil.ReadAll(r.Body)
 		reader := bytes.NewReader(body)
 
-		n, putErr := minioClient.PutObject("tables", object, reader, "application/text")
+		n, putErr := minioClient.PutObject("tables", object, reader, -1, minio.PutObjectOptions{ContentType:"application/text"})
 		if putErr != nil {
 			log.Println("Can't put object " + object)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -180,7 +181,7 @@ func main() {
 	r.Handle("/put/{object:[a-zA-Z0-9.-_]+}", putHandler(minioClient))
 	r.Handle("/get/{object:[a-zA-Z0-9.-_]+}", getHandler(minioClient))
 
-    r.Handle("/put-blob/{object:[a-zA-Z0-9.-_]+}", putBlobHandler(minioClient))
+        r.Handle("/put-blob/{object:[a-zA-Z0-9.-_]+}", putBlobHandler(minioClient))
 	r.Handle("/get-blob/{object:[a-zA-Z0-9.-_]+}", getBlobHandler(minioClient))
 
 s := &http.Server{
@@ -188,7 +189,7 @@ s := &http.Server{
 		ReadTimeout:    1 * time.Second,
 		WriteTimeout:   1 * time.Second,
 		MaxHeaderBytes: 1 << 20,
-		Handler:        r,
+		Handler:        context.ClearHandler(r),
 	}
 	log.Fatal(s.ListenAndServe())
 }
