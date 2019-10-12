@@ -50,8 +50,9 @@ Backlog:
 - [x] Add streaming modes
 - [x] Migrate to Docker / Go 1.11
 - [x] Use vendoring for dependencies
-- [ ] Read secrets from `/var/openfaas/secrets` for use with OpenFaaS as a "serverless workload"
-- [ ] Add shared secret Bearer token for HTTP API
+- [ ] Add Kubernetes `Deployment` and `Service`
+- [ ] Read secrets from either env-var or from files mounted at path
+- [ ] Add auth for all HTTP APIs using shared secret Bearer token
 
 ## Testing
 

@@ -1,10 +1,10 @@
 FROM golang:1.11 as build
 
-WORKDIR github.com/alexellis/minio-kv
+WORKDIR /go/src/github.com/alexellis/minio-kv/
 
 COPY .git               .git
 COPY vendor             vendor
-COPY server.go            .
+COPY main.go            .
 
 ARG GIT_COMMIT
 ARG VERSION
