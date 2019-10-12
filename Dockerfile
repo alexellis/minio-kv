@@ -27,4 +27,4 @@ WORKDIR /home/app
 USER app
 EXPOSE 8080
 
-CMD ["minio-kv"]
+ENTRYPOINT ["minio-kv"]
