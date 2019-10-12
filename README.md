@@ -1,6 +1,6 @@
-# minio-kvp
+# minio-kv
 
-minio-kvp is a thin layer to store JSON objects and binary blobs in a Minio object storage server with a GET/PUT interface over HTTP. For more on Minio, checkout https://minio.io
+minio-kv is a thin layer to store JSON objects and binary blobs in a Minio object storage server with a GET/PUT interface over HTTP. For more on Minio, checkout https://minio.io
 
 ### Usage:
 
@@ -30,7 +30,7 @@ Run the app
 
 ```sh
 go build && port=8081 host=127.0.0.1:9000 MINIO_ACCESS_KEY=511e8d6c84ee65feda34efdcc5366281a22b6dfd MINIO_SECRET_KEY=d88b4816ac11f0
-ee5efcc5282d2fe9896162a1d6 ./minio-kvp
+ee5efcc5282d2fe9896162a1d6 ./minio-kv
 ```
 
 Get/put a big binary file:
