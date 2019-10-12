@@ -2,16 +2,16 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"io/ioutil"
 
 	"bytes"
-
-	"strings"
 
 	"github.com/gorilla/mux"
 	minio "github.com/minio/minio-go"
@@ -22,8 +22,9 @@ func getBlobHandler(minioClient *minio.Client) http.HandlerFunc {
 
 		vars := mux.Vars(r)
 		object := vars["object"]
+		getOpts := minio.GetObjectOptions{}
 
-		objectReceived, getErr := minioClient.GetObject("tables", object)
+		objectReceived, getErr := minioClient.GetObject("tables", object, getOpts)
 		if getErr != nil {
 			w.WriteHeader(http.StatusNotFound)
 			log.Println("Can't get object " + object)
@@ -35,11 +36,34 @@ func getBlobHandler(minioClient *minio.Client) http.HandlerFunc {
 			w.WriteHeader(http.StatusNotFound)
 			log.Println("Can't read object " + object)
 			return
-		} else {
-			w.Header().Set("Content-Type", "application/octet-stream")
-			w.WriteHeader(http.StatusOK)
-			w.Write(data)
 		}
+
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
+	}
+}
+
+func getBlobStreamHandler(minioClient *minio.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		vars := mux.Vars(r)
+		object := vars["object"]
+		getOpts := minio.GetObjectOptions{}
+
+		objectReceived, getErr := minioClient.GetObject("tables", object, getOpts)
+		if getErr != nil {
+			w.WriteHeader(http.StatusNotFound)
+			log.Println("Can't get object " + object)
+			return
+		}
+
+		rr := ioutil.NopCloser(objectReceived)
+		defer rr.Close()
+
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.WriteHeader(http.StatusOK)
+		io.Copy(w, rr)
 	}
 }
 
@@ -52,7 +76,37 @@ func putBlobHandler(minioClient *minio.Client) http.HandlerFunc {
 		body, _ := ioutil.ReadAll(r.Body)
 		reader := bytes.NewReader(body)
 
-		n, putErr := minioClient.PutObject("tables", object, reader, "application/octet-stream")
+		putOpts := minio.PutObjectOptions{
+			ContentEncoding: "application/octet-stream",
+		}
+
+		n, putErr := minioClient.PutObject("tables", object, reader, int64(len(body)), putOpts)
+
+		if putErr != nil {
+			log.Println("Can't put object " + object)
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Can't put " + object + ". Failed."))
+		} else {
+			log.Printf("Put %s. n=%d\n", object, n)
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("Put " + object + ". OK."))
+		}
+	}
+}
+
+func putBlobStreamHandler(minioClient *minio.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		object := vars["object"]
+
+		defer r.Body.Close()
+
+		putOpts := minio.PutObjectOptions{
+			ContentEncoding: "application/octet-stream",
+		}
+
+		n, putErr := minioClient.PutObject("tables", object, r.Body, -1, putOpts)
+
 		if putErr != nil {
 			log.Println("Can't put object " + object)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -71,7 +125,9 @@ func getHandler(minioClient *minio.Client) http.HandlerFunc {
 		vars := mux.Vars(r)
 		object := vars["object"]
 
-		objectReceived, getErr := minioClient.GetObject("tables", object)
+		getOpts := minio.GetObjectOptions{}
+
+		objectReceived, getErr := minioClient.GetObject("tables", object, getOpts)
 		if getErr != nil {
 			w.WriteHeader(http.StatusNotFound)
 			log.Println("Can't get object " + object)
@@ -86,7 +142,7 @@ func getHandler(minioClient *minio.Client) http.HandlerFunc {
 		} else {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			fmt.Printf("%s\n%s", object, string(data))
+			fmt.Printf("Read: %s, bytes: %d\n", object, len(data))
 			w.Write(data)
 		}
 	}
@@ -101,7 +157,12 @@ func putHandler(minioClient *minio.Client) http.HandlerFunc {
 		body, _ := ioutil.ReadAll(r.Body)
 		reader := bytes.NewReader(body)
 
-		n, putErr := minioClient.PutObject("tables", object, reader, "application/text")
+		putOpts := minio.PutObjectOptions{
+			ContentEncoding: "application/text",
+		}
+
+		n, putErr := minioClient.PutObject("tables", object, reader, int64(len(body)), putOpts)
+
 		if putErr != nil {
 			log.Println("Can't put object " + object)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -114,23 +175,9 @@ func putHandler(minioClient *minio.Client) http.HandlerFunc {
 	}
 }
 
-func get(key string) string {
-	env := os.Getenv(key)
-	if len(env) == 0 {
-		path := os.Getenv(key + ".secret")
-		data, err := ioutil.ReadFile(path)
-		if err != nil {
-			log.Fatalln(path, err)
-		}
-
-		env = strings.Trim(strings.SplitAfter(string(data), "\n")[0], "\n")
-	}
-	return env
-}
-
 func connect(ssl bool, secret string, access string, host string) (*minio.Client, error) {
 	maxAttempts := 30
-        connected := false
+	connected := false
 	var err error
 	var minioClient *minio.Client
 
@@ -139,20 +186,21 @@ func connect(ssl bool, secret string, access string, host string) (*minio.Client
 		minioClient, err = minio.New(host, access, secret, ssl)
 
 		if err == nil {
-                        connected = true
-			break;
+			connected = true
+			break
 		} else {
-			log.Println(err)
+			log.Printf("Error: %s\n", err)
 			time.Sleep(1 * time.Second)
 		}
 	}
-        if connected == false && err != nil {
+
+	if connected == false && err != nil {
 		log.Fatal("Cannot connect to S3")
 		return nil, err
-        }
+	}
 
 	exists, err := minioClient.BucketExists("tables")
-        if err == nil && exists == false {
+	if err == nil && exists == false {
 		err = minioClient.MakeBucket("tables", "us-east-1")
 		if err != nil {
 			fmt.Println(err)
@@ -166,13 +214,16 @@ func connect(ssl bool, secret string, access string, host string) (*minio.Client
 
 func main() {
 	ssl := false
-	secret := get("secret")
-	access := get("access")
+	secret := os.Getenv("MINIO_SECRET_KEY")
+	access := os.Getenv("MINIO_ACCESS_KEY")
 	host := os.Getenv("host")
+	port := "8080"
+	if val, ok := os.LookupEnv("port"); ok {
+		port = strings.TrimSpace(val)
+	}
 
-	fmt.Printf("secret='%s',access='%s'\n", secret, access)
 	minioClient, err := connect(ssl, secret, access, host)
-        if err != nil {
+	if err != nil {
 		log.Fatal(err)
 	}
 
@@ -180,13 +231,15 @@ func main() {
 	r.Handle("/put/{object:[a-zA-Z0-9.-_]+}", putHandler(minioClient))
 	r.Handle("/get/{object:[a-zA-Z0-9.-_]+}", getHandler(minioClient))
 
-    r.Handle("/put-blob/{object:[a-zA-Z0-9.-_]+}", putBlobHandler(minioClient))
+	r.Handle("/put-blob/{object:[a-zA-Z0-9.-_]+}", putBlobHandler(minioClient))
 	r.Handle("/get-blob/{object:[a-zA-Z0-9.-_]+}", getBlobHandler(minioClient))
+	r.Handle("/put-blob-stream/{object:[a-zA-Z0-9.-_]+}", putBlobStreamHandler(minioClient))
+	r.Handle("/get-blob-stream/{object:[a-zA-Z0-9.-_]+}", getBlobStreamHandler(minioClient))
 
-s := &http.Server{
-		Addr:           ":8080",
-		ReadTimeout:    1 * time.Second,
-		WriteTimeout:   1 * time.Second,
+	s := &http.Server{
+		Addr:           fmt.Sprintf(":%s", port),
+		ReadTimeout:    60 * time.Second,
+		WriteTimeout:   60 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 		Handler:        r,
 	}
