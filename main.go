@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/subtle"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -16,6 +18,10 @@ import (
 	"github.com/gorilla/mux"
 	minio "github.com/minio/minio-go"
 )
+
+type bearerToken struct {
+	token string
+}
 
 func getBlobHandler(minioClient *minio.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -212,6 +218,21 @@ func connect(ssl bool, secret string, access string, host string) (*minio.Client
 	return minioClient, err
 }
 
+func (t *bearerToken) authenticate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := ""
+		if tokenSplit := strings.Split(r.Header.Get("Authorization"), "Bearer"); len(tokenSplit) > 1 {
+			token = strings.TrimSpace(tokenSplit[1])
+		}
+
+		if subtle.ConstantTimeCompare([]byte(token), []byte(t.token)) == 1 {
+			next.ServeHTTP(w, r)
+		} else {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+	})
+}
+
 func main() {
 	ssl := false
 	secret := os.Getenv("MINIO_SECRET_KEY")
@@ -222,12 +243,20 @@ func main() {
 		port = strings.TrimSpace(val)
 	}
 
+	bearerToken := bearerToken{}
+	flag.StringVar(&bearerToken.token, "token", "", "pass token for client to authenticate")
+	flag.Parse()
+
 	minioClient, err := connect(ssl, secret, access, host)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	r := mux.NewRouter()
+	if len(bearerToken.token) > 0 {
+		r.Use(bearerToken.authenticate)
+	}
+
 	r.Handle("/put/{object:[a-zA-Z0-9.-_]+}", putHandler(minioClient))
 	r.Handle("/get/{object:[a-zA-Z0-9.-_]+}", getHandler(minioClient))
 

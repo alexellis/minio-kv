@@ -12,3 +12,5 @@ require (
 	golang.org/x/text v0.3.0 // indirect
 	gopkg.in/ini.v1 v1.41.0
 )
+
+go 1.13
