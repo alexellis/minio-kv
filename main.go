@@ -267,8 +267,8 @@ func main() {
 
 	s := &http.Server{
 		Addr:           fmt.Sprintf(":%s", port),
-		ReadTimeout:    60 * time.Second,
-		WriteTimeout:   60 * time.Second,
+		ReadTimeout:    5 * time.Minute,
+		WriteTimeout:   5 * time.Minute,
 		MaxHeaderBytes: 1 << 20,
 		Handler:        r,
 	}
