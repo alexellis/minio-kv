@@ -158,7 +158,7 @@ func putHandler(minioClient *minio.Client) http.HandlerFunc {
 		reader := bytes.NewReader(body)
 
 		putOpts := minio.PutObjectOptions{
-			ContentEncoding: "application/text",
+			ContentEncoding: "application/json",
 		}
 
 		n, putErr := minioClient.PutObject("tables", object, reader, int64(len(body)), putOpts)
