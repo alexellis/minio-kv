@@ -1,0 +1,15 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-kv-service
+  labels:
+    app: minio-kv
+spec:
+  ports:
+    - port: 8080
+      name: clientport
+      targetPort : 9000
+      protocol: TCP
+  selector:
+    app: minio-kv

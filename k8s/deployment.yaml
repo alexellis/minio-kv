@@ -1,0 +1,36 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio-kv-deployment
+  labels:
+    app: minio-kv
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio-kv
+  template:
+    metadata:
+      labels:
+        app: minio-kv
+    spec:
+      containers:
+      - name: minio-kv
+        image: alexellis2/minio-kv:0.1.0
+        env:
+        - name: MINIO_ACCESS_KEY
+          value: 511e8d6c84ee65feda34efdcc5366281a22b6dfd
+        - name: MINIO_SECRET_KEY
+          value: d88b4816ac11f0ee5efcc5282d2fe9896162a1d6
+        command: [ "minio-kv" ]
+        args: [ "server /tmp/" ]
+        ports:
+        - containerPort: 9000
+        resources:
+          requests:
+            memory: 100Mi
+            cpu: 100m
+          limits:
+            memory: 200Mi
+            cpu: 200m
