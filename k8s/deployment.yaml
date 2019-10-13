@@ -17,14 +17,19 @@ spec:
     spec:
       containers:
       - name: minio-kv
-        image: alexellis2/minio-kv:0.1.0
+        image: alexellis2/minio-kv:0.2.1
         env:
         - name: MINIO_ACCESS_KEY
-          value: 511e8d6c84ee65feda34efdcc5366281a22b6dfd
+          valueFrom:
+            secretKeyRef:
+              name: minio-kv-secrets
+              key: MINIO_ACCESS_KEY
         - name: MINIO_SECRET_KEY
-          value: d88b4816ac11f0ee5efcc5282d2fe9896162a1d6
+          valueFrom:
+            secretKeyRef:
+              name: minio-kv-secrets
+              key: MINIO_SECRET_KEY
         command: [ "minio-kv" ]
-        args: [ "server /tmp/" ]
         ports:
         - containerPort: 9000
         resources:
