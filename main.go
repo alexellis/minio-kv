@@ -221,7 +221,7 @@ func main() {
 		secretData, err := ioutil.ReadFile(val)
 		if err == nil {
 			secret = string(secretData)
-			log.Println("Using data from MINIO_SECRET_KEY_MOUNT_PATH.")
+			log.Printf("Using data from MINIO_SECRET_KEY_MOUNT_PATH: >>%s<<", secret)
 		} else {
 			log.Printf("Error reading from %s. Using MINIO_SECRET_KEY instead.", val)
 		}
