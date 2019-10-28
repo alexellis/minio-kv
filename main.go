@@ -235,7 +235,21 @@ func (t *bearerToken) authenticate(next http.Handler) http.Handler {
 
 func main() {
 	ssl := false
+
 	secret := os.Getenv("MINIO_SECRET_KEY")
+	if val, ok := os.LookupEnv("MINIO_SECRET_KEY_MOUNT_PATH"); ok && len(val) > 0 {
+		log.Println("Found MINIO_SECRET_KEY_MOUNT_PATH in environment.")
+		secretData, err := ioutil.ReadFile(val)
+		if err == nil {
+			secret = string(secretData)
+			log.Println("Using data from MINIO_SECRET_KEY_MOUNT_PATH.")
+		} else {
+			log.Printf("Error reading from %s. Using MINIO_SECRET_KEY instead.", val)
+		}
+	} else {
+		log.Println("Not found MINIO_SECRET_KEY_MOUNT_PATH in environment. Using MINIO_SECRET_KEY instead.")
+	}
+
 	access := os.Getenv("MINIO_ACCESS_KEY")
 	host := os.Getenv("host")
 	port := "8080"
