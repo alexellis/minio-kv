@@ -76,6 +76,43 @@ curl localhost:8081/get-blob-stream/test > big-file-out.img
 diff big-file.img big-file-out.img
 ```
 
+## Running on Kubernetes
+
+**Create MINIO_ACCESS_KEY, MINIO_SECRET_KEY environment variables**
+```
+MINIO_ACCESS_KEY=$(head -c 12 /dev/urandom | shasum | cut -d  ' ' -f1) \
+MINIO_SECRET_KEY=$(head -c 12 /dev/urandom | shasum | cut -d  ' ' -f1) \
+TOKEN=$(head -c 12 /dev/urandom | shasum | cut -d  ' ' -f1)
+```
+
+**Create secrets out of the above env vars**
+```
+kubectl create secret generic minio-kv \
+--from-literal=minio-access-key=$MINIO_ACCESS_KEY \
+--from-literal=minio-secret-key=$MINIO_SECRET_KEY \
+--from-literal=token=$TOKEN
+```
+
+**(If Helm is not installed)**
+Follow the instructions [here](https://github.com/openfaas/faas-netes/blob/master/HELM.md).
+
+**Install Minio with Helm**
+```
+helm install --name minio --namespace default \
+   --set accessKey="$MINIO_ACCESS_KEY" \
+   --set secretKey="$MINIO_SECRET_KEY" \
+   --set replicas=1 \
+   --set persistence.enabled=false \
+   --set service.port=9000 \
+   --set service.type=ClusterIP \
+stable/minio
+```
+
+**Create the kubernetes deployment and service**
+```
+kubectl apply -f yaml/
+```
+
 ## License
 
 MIT, Alex Ellis 2017-2019

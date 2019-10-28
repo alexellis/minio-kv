@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio-kv
+  labels:
+    app: minio-kv
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio-kv
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      name: minio-kv
+      labels:
+        app: minio-kv
+    spec:
+      containers:
+      - name: minio-kv
+        image: alexellis2/minio-kv:0.2.0
+        imagePullPolicy: Always
+        env:
+          - name: MINIO_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-kv
+                key: minio-access-key
+          - name: MINIO_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-kv
+                key: minio-secret-key
+          - name: TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: minio-kv
+                key: token
+          - name: host
+            value: minio.default.svc.cluster.local:9000
+        command: ["minio-kv"]
+        args:
+        - "--token=$(TOKEN)"
+        ports:
+        - containerPort: 8080
+          protocol: TCP
